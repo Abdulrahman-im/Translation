@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPTX Translation Service</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 25px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 0.95rem;
+            color: #666;
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Upload area */
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #fafafa;
+            margin-bottom: 15px;
+        }
+
+        .upload-area:hover,
+        .upload-area.drag-over {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .upload-area.drag-over {
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        .upload-text {
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .upload-hint {
+            color: #999;
+            font-size: 0.85rem;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-download {
+            background: #28a745;
+            color: white;
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .btn-download:hover {
+            background: #218838;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        /* Selected file display */
+        .selected-file {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e8f4e8;
+            border-radius: 8px;
+            color: #2d5a2d;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .selected-file.show {
+            display: block;
+        }
+
+        /* Progress */
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-container.show {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        /* Results */
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            display: none;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+
+        .result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+
+        .result-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .result.success .result-title {
+            color: #155724;
+        }
+
+        .result.error .result-title {
+            color: #721c24;
+        }
+
+        .result-message {
+            font-size: 0.9rem;
+        }
+
+        .result.success .result-message {
+            color: #155724;
+        }
+
+        .result.error .result-message {
+            color: #721c24;
+        }
+
+        .reset-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .reset-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Dictionary stats */
+        .stats-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stats-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        /* Dual upload for dictionary builder */
+        .dual-upload {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .dual-upload .upload-area {
+            margin-bottom: 0;
+        }
+
+        .upload-label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            display: block;
+        }
+
+        /* Validation results */
+        .validation-results {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .validation-item {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+
+        .validation-item.valid {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+        }
+
+        .validation-item.invalid {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+        }
+
+        .validation-item .english {
+            color: #333;
+        }
+
+        .validation-item .arabic {
+            color: #666;
+            direction: rtl;
+        }
+
+        .validation-item .reason {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PPTX Translator</h1>
+        <p class="subtitle">Translate PowerPoint presentations from English to Arabic</p>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="translate">Translate PPTX</button>
+            <button class="tab" data-tab="dictionary">Build Dictionary</button>
+        </div>
+
+        <!-- Tab 1: Translate PPTX -->
+        <div id="translate" class="tab-content active">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📄</div>
+                <p class="upload-text">Drag & drop your PPTX file here</p>
+                <p class="upload-hint">or click to browse</p>
+                <input type="file" id="fileInput" accept=".pptx">
+            </div>
+
+            <div class="selected-file" id="selectedFile"></div>
+
+            <button class="btn btn-primary" id="uploadBtn" disabled>
+                Upload & Translate
+            </button>
+
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p class="progress-text" id="progressText">Processing...</p>
+            </div>
+
+            <div class="result" id="result">
+                <p class="result-title" id="resultTitle"></p>
+                <p class="result-message" id="resultMessage"></p>
+                <a class="btn btn-download" id="downloadBtn" style="display: none;">
+                    Download Excel File
+                </a>
+                <span class="reset-link" id="resetLink">Upload another file</span>
+            </div>
+        </div>
+
+        <!-- Tab 2: Build Dictionary -->
+        <div id="dictionary" class="tab-content">
+            <div class="stats-box" id="statsBox">
+                <p class="stats-title">Dictionary Statistics</p>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalEntries">-</div>
+                        <div class="stat-label">Total Entries</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="validatedEntries">-</div>
+                        <div class="stat-label">Validated</div>
+                    </div>
+                </div>
+            </div>
+
+            <p style="margin-bottom: 15px; color: #666; font-size: 0.9rem;">
+                Upload parallel PowerPoint files to automatically build your translation dictionary.
+            </p>
+
+            <div class="dual-upload">
+                <div>
+                    <label class="upload-label">English PPTX</label>
+                    <div class="upload-area" id="uploadAreaEn">
+                        <div class="upload-icon">🇬🇧</div>
+                        <p class="upload-text">English file</p>
+                        <input type="file" id="fileInputEn" accept=".pptx">
+                    </div>
+                    <div class="selected-file" id="selectedFileEn"></div>
+                </div>
+                <div>
+                    <label class="upload-label">Arabic PPTX</label>
+                    <div class="upload-area" id="uploadAreaAr">
+                        <div class="upload-icon">🇸🇦</div>
+                        <p class="upload-text">Arabic file</p>
+                        <input type="file" id="fileInputAr" accept=".pptx">
+                    </div>
+                    <div class="selected-file" id="selectedFileAr"></div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="buildDictBtn" disabled>
+                Build Dictionary
+            </button>
+
+            <div class="progress-container" id="dictProgressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="dictProgressFill"></div>
+                </div>
+                <p class="progress-text" id="dictProgressText">Processing...</p>
+            </div>
+
+            <div class="result" id="dictResult">
+                <p class="result-title" id="dictResultTitle"></p>
+                <p class="result-message" id="dictResultMessage"></p>
+                <div class="validation-results" id="validationResults"></div>
+                <span class="reset-link" id="dictResetLink">Build another dictionary</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Load dictionary stats
+        async function loadDictionaryStats() {
+            try {
+                const response = await fetch('/api/dictionary/stats');
+                const data = await response.json();
+                document.getElementById('totalEntries').textContent = data.total_entries || 0;
+                document.getElementById('validatedEntries').textContent = data.validated_entries || 0;
+            } catch (e) {
+                console.error('Failed to load dictionary stats:', e);
+            }
+        }
+        loadDictionaryStats();
+
+        // ===== TRANSLATE TAB =====
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const selectedFile = document.getElementById('selectedFile');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const result = document.getElementById('result');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultMessage = document.getElementById('resultMessage');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const resetLink = document.getElementById('resetLink');
+
+        let currentFile = null;
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.name.toLowerCase().endsWith('.pptx')) {
+                showError('Invalid file type', 'Please upload a .pptx file');
+                return;
+            }
+            currentFile = file;
+            selectedFile.textContent = `Selected: ${file.name}`;
+            selectedFile.classList.add('show');
+            uploadBtn.disabled = false;
+            result.classList.remove('show');
+        }
+
+        uploadBtn.addEventListener('click', uploadFile);
+
+        async function uploadFile() {
+            if (!currentFile) return;
+
+            uploadBtn.disabled = true;
+            progressContainer.classList.add('show');
+            progressFill.style.width = '0%';
+            progressText.textContent = 'Uploading...';
+            result.classList.remove('show');
+
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                progressFill.style.width = progress + '%';
+            }, 200);
+
+            try {
+                const formData = new FormData();
+                formData.append('file', currentFile);
+
+                progressText.textContent = 'Translating...';
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess('Translation Complete!', data.message, data.file_id);
+                } else {
+                    showError('Processing Failed', data.detail || 'An error occurred');
+                }
+            } catch (error) {
+                clearInterval(progressInterval);
+                showError('Upload Failed', 'Could not connect to server. Please try again.');
+            }
+
+            progressContainer.classList.remove('show');
+        }
+
+        function showSuccess(title, message, fileId) {
+            result.className = 'result show success';
+            resultTitle.textContent = title;
+            resultMessage.textContent = message;
+            downloadBtn.href = `/api/download/${fileId}`;
+            downloadBtn.style.display = 'block';
+        }
+
+        function showError(title, message) {
+            result.className = 'result show error';
+            resultTitle.textContent = title;
+            resultMessage.textContent = message;
+            downloadBtn.style.display = 'none';
+            uploadBtn.disabled = false;
+        }
+
+        resetLink.addEventListener('click', () => {
+            currentFile = null;
+            fileInput.value = '';
+            selectedFile.classList.remove('show');
+            uploadBtn.disabled = true;
+            result.classList.remove('show');
+            progressContainer.classList.remove('show');
+        });
+
+        // ===== DICTIONARY TAB =====
+        const uploadAreaEn = document.getElementById('uploadAreaEn');
+        const uploadAreaAr = document.getElementById('uploadAreaAr');
+        const fileInputEn = document.getElementById('fileInputEn');
+        const fileInputAr = document.getElementById('fileInputAr');
+        const selectedFileEn = document.getElementById('selectedFileEn');
+        const selectedFileAr = document.getElementById('selectedFileAr');
+        const buildDictBtn = document.getElementById('buildDictBtn');
+        const dictProgressContainer = document.getElementById('dictProgressContainer');
+        const dictProgressFill = document.getElementById('dictProgressFill');
+        const dictProgressText = document.getElementById('dictProgressText');
+        const dictResult = document.getElementById('dictResult');
+        const dictResultTitle = document.getElementById('dictResultTitle');
+        const dictResultMessage = document.getElementById('dictResultMessage');
+        const validationResults = document.getElementById('validationResults');
+        const dictResetLink = document.getElementById('dictResetLink');
+
+        let englishFile = null;
+        let arabicFile = null;
+
+        function setupDualUpload(area, input, selectedDiv, setFile, label) {
+            area.addEventListener('click', () => input.click());
+
+            input.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    if (!file.name.toLowerCase().endsWith('.pptx')) {
+                        alert('Please upload a .pptx file');
+                        return;
+                    }
+                    setFile(file);
+                    selectedDiv.textContent = file.name;
+                    selectedDiv.classList.add('show');
+                    checkBuildReady();
+                }
+            });
+
+            area.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                area.classList.add('drag-over');
+            });
+
+            area.addEventListener('dragleave', () => {
+                area.classList.remove('drag-over');
+            });
+
+            area.addEventListener('drop', (e) => {
+                e.preventDefault();
+                area.classList.remove('drag-over');
+                if (e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    if (!file.name.toLowerCase().endsWith('.pptx')) {
+                        alert('Please upload a .pptx file');
+                        return;
+                    }
+                    setFile(file);
+                    selectedDiv.textContent = file.name;
+                    selectedDiv.classList.add('show');
+                    checkBuildReady();
+                }
+            });
+        }
+
+        setupDualUpload(uploadAreaEn, fileInputEn, selectedFileEn, (f) => { englishFile = f; }, 'English');
+        setupDualUpload(uploadAreaAr, fileInputAr, selectedFileAr, (f) => { arabicFile = f; }, 'Arabic');
+
+        function checkBuildReady() {
+            buildDictBtn.disabled = !(englishFile && arabicFile);
+        }
+
+        buildDictBtn.addEventListener('click', buildDictionary);
+
+        async function buildDictionary() {
+            if (!englishFile || !arabicFile) return;
+
+            buildDictBtn.disabled = true;
+            dictProgressContainer.classList.add('show');
+            dictProgressFill.style.width = '0%';
+            dictProgressText.textContent = 'Uploading files...';
+            dictResult.classList.remove('show');
+
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 10;
+                if (progress > 90) progress = 90;
+                dictProgressFill.style.width = progress + '%';
+            }, 300);
+
+            try {
+                const formData = new FormData();
+                formData.append('english_file', englishFile);
+                formData.append('arabic_file', arabicFile);
+
+                dictProgressText.textContent = 'Aligning and validating pairs...';
+
+                const response = await fetch('/api/dictionary/build', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                clearInterval(progressInterval);
+                dictProgressFill.style.width = '100%';
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showDictSuccess(data);
+                    loadDictionaryStats();
+                } else {
+                    showDictError('Build Failed', data.detail || 'An error occurred');
+                }
+            } catch (error) {
+                clearInterval(progressInterval);
+                showDictError('Build Failed', 'Could not connect to server. Please try again.');
+            }
+
+            dictProgressContainer.classList.remove('show');
+        }
+
+        function showDictSuccess(data) {
+            dictResult.className = 'result show success';
+            dictResultTitle.textContent = 'Dictionary Built Successfully!';
+            dictResultMessage.textContent = data.message;
+
+            // Show validation results
+            validationResults.innerHTML = '';
+            if (data.candidates && data.candidates.length > 0) {
+                data.candidates.forEach(c => {
+                    if (c.english !== '[UNPAIRED]' && c.arabic !== '[UNPAIRED]') {
+                        const div = document.createElement('div');
+                        div.className = `validation-item ${c.validated ? 'valid' : 'invalid'}`;
+                        div.innerHTML = `
+                            <div class="english">${c.english}</div>
+                            <div class="arabic">${c.arabic}</div>
+                            <div class="reason">${c.validated ? 'Valid' : c.validation_reason || 'Not validated'}</div>
+                        `;
+                        validationResults.appendChild(div);
+                    }
+                });
+            }
+        }
+
+        function showDictError(title, message) {
+            dictResult.className = 'result show error';
+            dictResultTitle.textContent = title;
+            dictResultMessage.textContent = message;
+            validationResults.innerHTML = '';
+            buildDictBtn.disabled = false;
+        }
+
+        dictResetLink.addEventListener('click', () => {
+            englishFile = null;
+            arabicFile = null;
+            fileInputEn.value = '';
+            fileInputAr.value = '';
+            selectedFileEn.classList.remove('show');
+            selectedFileAr.classList.remove('show');
+            buildDictBtn.disabled = true;
+            dictResult.classList.remove('show');
+            dictProgressContainer.classList.remove('show');
+        });
+    </script>
+</body>
+</html>

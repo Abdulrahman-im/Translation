@@ -1,0 +1,27 @@
+{
+  "entries": [
+    {"english": "Hello", "arabic": "مرحبا", "validated": true},
+    {"english": "Welcome", "arabic": "أهلا وسهلا", "validated": true},
+    {"english": "Thank you", "arabic": "شكرا", "validated": true},
+    {"english": "Goodbye", "arabic": "مع السلامة", "validated": true},
+    {"english": "Yes", "arabic": "نعم", "validated": true},
+    {"english": "No", "arabic": "لا", "validated": true},
+    {"english": "Please", "arabic": "من فضلك", "validated": true},
+    {"english": "Name", "arabic": "الاسم", "validated": true},
+    {"english": "Date", "arabic": "التاريخ", "validated": true},
+    {"english": "Title", "arabic": "العنوان", "validated": true},
+    {"english": "Introduction", "arabic": "مقدمة", "validated": true},
+    {"english": "Conclusion", "arabic": "خاتمة", "validated": true},
+    {"english": "Summary", "arabic": "ملخص", "validated": true},
+    {"english": "Overview", "arabic": "نظرة عامة", "validated": true},
+    {"english": "Contact", "arabic": "اتصل بنا", "validated": true},
+    {"english": "Email", "arabic": "البريد الإلكتروني", "validated": true},
+    {"english": "Phone", "arabic": "الهاتف", "validated": true},
+    {"english": "Address", "arabic": "العنوان", "validated": true}
+  ],
+  "metadata": {
+    "version": "1.0",
+    "last_updated": null,
+    "total_entries": 18
+  }
+}
