@@ -4,13 +4,26 @@ import os
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Body
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Optional
 
 from .services import extract_text_from_pptx, translate_text, create_excel_file
-from .services.dictionary import get_all_entries, add_entry, get_dictionary_stats
+from .services.dictionary import get_all_entries, add_entry, add_entries_bulk, get_dictionary_stats
+
+
+class DictionaryEntry(BaseModel):
+    english: str
+    arabic: str
+
+
+class BulkEntriesRequest(BaseModel):
+    entries: List[DictionaryEntry]
+
+
 from .services.alignment import build_dictionary_from_parallel_pptx
 
 # Get base directory
@@ -155,10 +168,39 @@ async def get_dictionary():
 
 
 @app.post("/api/dictionary/add")
-async def add_dictionary_entry(english: str, arabic: str):
-    """Add a single entry to the dictionary."""
-    success = add_entry(english, arabic, validated=True)
+async def add_dictionary_entry(entry: DictionaryEntry):
+    """Add a single entry to the dictionary (word or sentence)."""
+    if not entry.english.strip() or not entry.arabic.strip():
+        raise HTTPException(status_code=400, detail="Both English and Arabic text are required")
+
+    success = add_entry(entry.english.strip(), entry.arabic.strip(), validated=True)
     return {"success": success, "message": "Entry added successfully"}
+
+
+@app.post("/api/dictionary/add-bulk")
+async def add_dictionary_entries_bulk(request: BulkEntriesRequest):
+    """Add multiple entries to the dictionary at once."""
+    if not request.entries:
+        raise HTTPException(status_code=400, detail="No entries provided")
+
+    # Filter out empty entries
+    valid_entries = [
+        {"english": e.english.strip(), "arabic": e.arabic.strip(), "validated": True}
+        for e in request.entries
+        if e.english.strip() and e.arabic.strip()
+    ]
+
+    if not valid_entries:
+        raise HTTPException(status_code=400, detail="No valid entries found")
+
+    added_count = add_entries_bulk(valid_entries)
+
+    return {
+        "success": True,
+        "added": added_count,
+        "total_submitted": len(request.entries),
+        "message": f"Added {added_count} entries to dictionary"
+    }
 
 
 @app.post("/api/dictionary/build")

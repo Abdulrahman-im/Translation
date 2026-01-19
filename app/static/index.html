@@ -38,7 +38,7 @@
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             padding: 30px;
             width: 100%;
-            max-width: 600px;
+            max-width: 700px;
             border-top: 4px solid var(--pif-gold);
         }
 
@@ -84,12 +84,12 @@
 
         .tab {
             flex: 1;
-            padding: 12px;
+            padding: 12px 8px;
             text-align: center;
             cursor: pointer;
             border: none;
             background: none;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             color: var(--pif-gray);
             transition: all 0.3s ease;
             border-bottom: 2px solid transparent;
@@ -197,6 +197,16 @@
         .btn-download:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 20px rgba(201, 162, 39, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--pif-light-gray);
+            color: var(--pif-gray);
+            border: 1px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #eee;
         }
 
         /* Selected file display */
@@ -412,6 +422,173 @@
             border-top: 1px solid rgba(0,0,0,0.1);
         }
 
+        /* Manual Entry Styles */
+        .section-title {
+            font-weight: 600;
+            color: var(--pif-black);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--pif-light-gray);
+        }
+
+        .entry-form {
+            margin-bottom: 20px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-weight: 500;
+            color: var(--pif-gray);
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: border-color 0.3s ease;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--pif-green);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-group input[dir="rtl"],
+        .form-group textarea[dir="rtl"] {
+            text-align: right;
+        }
+
+        .entry-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .entry-actions .btn {
+            flex: 1;
+            margin-top: 0;
+        }
+
+        /* Bulk Entry */
+        .bulk-entries {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 2px solid var(--pif-light-gray);
+        }
+
+        .bulk-entry-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: start;
+        }
+
+        .bulk-entry-row input {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .bulk-entry-row input:focus {
+            outline: none;
+            border-color: var(--pif-green);
+        }
+
+        .remove-row-btn {
+            background: #f8d7da;
+            color: #721c24;
+            border: none;
+            border-radius: 8px;
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s ease;
+        }
+
+        .remove-row-btn:hover {
+            background: #f5c6cb;
+        }
+
+        .add-row-btn {
+            background: none;
+            border: 2px dashed var(--pif-green);
+            color: var(--pif-green);
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            width: 100%;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .add-row-btn:hover {
+            background: rgba(0, 107, 90, 0.05);
+        }
+
+        /* Mode toggle */
+        .mode-toggle {
+            display: flex;
+            background: var(--pif-light-gray);
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--pif-gray);
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .mode-btn.active {
+            background: white;
+            color: var(--pif-green);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .entry-mode {
+            display: none;
+        }
+
+        .entry-mode.active {
+            display: block;
+        }
+
         /* Footer */
         .footer {
             text-align: center;
@@ -433,8 +610,9 @@
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab active" data-tab="translate">Translate PPTX</button>
+            <button class="tab active" data-tab="translate">Translate</button>
             <button class="tab" data-tab="dictionary">Build Dictionary</button>
+            <button class="tab" data-tab="manual">Manual Entry</button>
         </div>
 
         <!-- Tab 1: Translate PPTX -->
@@ -529,6 +707,94 @@
             </div>
         </div>
 
+        <!-- Tab 3: Manual Entry -->
+        <div id="manual" class="tab-content">
+            <div class="stats-box" id="statsBoxManual">
+                <p class="stats-title">Dictionary Statistics</p>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalEntriesManual">-</div>
+                        <div class="stat-label">Total Entries</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="validatedEntriesManual">-</div>
+                        <div class="stat-label">Validated</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mode Toggle -->
+            <div class="mode-toggle">
+                <button class="mode-btn active" data-mode="single">Single Entry</button>
+                <button class="mode-btn" data-mode="bulk">Bulk Entry</button>
+            </div>
+
+            <!-- Single Entry Mode -->
+            <div id="singleEntryMode" class="entry-mode active">
+                <p style="margin-bottom: 15px; color: var(--pif-gray); font-size: 0.9rem;">
+                    Add a word or sentence translation to the dictionary.
+                </p>
+
+                <div class="entry-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="singleEnglish">English (Word or Sentence)</label>
+                            <textarea id="singleEnglish" placeholder="Enter English text..." rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="singleArabic">Arabic Translation</label>
+                            <textarea id="singleArabic" dir="rtl" placeholder="أدخل الترجمة العربية..." rows="3"></textarea>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="addSingleBtn">
+                        Add to Dictionary
+                    </button>
+                </div>
+
+                <div class="result" id="singleResult">
+                    <p class="result-title" id="singleResultTitle"></p>
+                    <p class="result-message" id="singleResultMessage"></p>
+                </div>
+            </div>
+
+            <!-- Bulk Entry Mode -->
+            <div id="bulkEntryMode" class="entry-mode">
+                <p style="margin-bottom: 15px; color: var(--pif-gray); font-size: 0.9rem;">
+                    Add multiple translations at once. Each row is one entry.
+                </p>
+
+                <div id="bulkEntriesContainer">
+                    <div class="bulk-entry-row">
+                        <input type="text" placeholder="English word or sentence" class="bulk-english">
+                        <input type="text" placeholder="الترجمة العربية" dir="rtl" class="bulk-arabic">
+                        <button class="remove-row-btn" onclick="removeRow(this)">×</button>
+                    </div>
+                    <div class="bulk-entry-row">
+                        <input type="text" placeholder="English word or sentence" class="bulk-english">
+                        <input type="text" placeholder="الترجمة العربية" dir="rtl" class="bulk-arabic">
+                        <button class="remove-row-btn" onclick="removeRow(this)">×</button>
+                    </div>
+                    <div class="bulk-entry-row">
+                        <input type="text" placeholder="English word or sentence" class="bulk-english">
+                        <input type="text" placeholder="الترجمة العربية" dir="rtl" class="bulk-arabic">
+                        <button class="remove-row-btn" onclick="removeRow(this)">×</button>
+                    </div>
+                </div>
+
+                <button class="add-row-btn" id="addRowBtn">+ Add Another Row</button>
+
+                <div class="entry-actions">
+                    <button class="btn btn-secondary" id="clearBulkBtn">Clear All</button>
+                    <button class="btn btn-primary" id="addBulkBtn" style="margin-top: 0;">Add All to Dictionary</button>
+                </div>
+
+                <div class="result" id="bulkResult">
+                    <p class="result-title" id="bulkResultTitle"></p>
+                    <p class="result-message" id="bulkResultMessage"></p>
+                </div>
+            </div>
+        </div>
+
         <div class="footer">
             Translation Service
         </div>
@@ -545,6 +811,16 @@
             });
         });
 
+        // Mode toggle for manual entry
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.entry-mode').forEach(m => m.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.mode + 'EntryMode').classList.add('active');
+            });
+        });
+
         // Load dictionary stats
         async function loadDictionaryStats() {
             try {
@@ -552,6 +828,8 @@
                 const data = await response.json();
                 document.getElementById('totalEntries').textContent = data.total_entries || 0;
                 document.getElementById('validatedEntries').textContent = data.validated_entries || 0;
+                document.getElementById('totalEntriesManual').textContent = data.total_entries || 0;
+                document.getElementById('validatedEntriesManual').textContent = data.validated_entries || 0;
             } catch (e) {
                 console.error('Failed to load dictionary stats:', e);
             }
@@ -807,7 +1085,6 @@
             dictResultTitle.textContent = 'Dictionary Built Successfully!';
             dictResultMessage.textContent = data.message;
 
-            // Show validation results
             validationResults.innerHTML = '';
             if (data.candidates && data.candidates.length > 0) {
                 data.candidates.forEach(c => {
@@ -844,6 +1121,147 @@
             dictResult.classList.remove('show');
             dictProgressContainer.classList.remove('show');
         });
+
+        // ===== MANUAL ENTRY TAB =====
+
+        // Single Entry
+        const singleEnglish = document.getElementById('singleEnglish');
+        const singleArabic = document.getElementById('singleArabic');
+        const addSingleBtn = document.getElementById('addSingleBtn');
+        const singleResult = document.getElementById('singleResult');
+        const singleResultTitle = document.getElementById('singleResultTitle');
+        const singleResultMessage = document.getElementById('singleResultMessage');
+
+        addSingleBtn.addEventListener('click', async () => {
+            const english = singleEnglish.value.trim();
+            const arabic = singleArabic.value.trim();
+
+            if (!english || !arabic) {
+                showSingleResult('error', 'Missing Fields', 'Please enter both English and Arabic text.');
+                return;
+            }
+
+            addSingleBtn.disabled = true;
+            addSingleBtn.textContent = 'Adding...';
+
+            try {
+                const response = await fetch('/api/dictionary/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ english, arabic })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSingleResult('success', 'Entry Added!', data.message);
+                    singleEnglish.value = '';
+                    singleArabic.value = '';
+                    loadDictionaryStats();
+                } else {
+                    showSingleResult('error', 'Failed', data.detail || 'An error occurred');
+                }
+            } catch (error) {
+                showSingleResult('error', 'Error', 'Could not connect to server.');
+            }
+
+            addSingleBtn.disabled = false;
+            addSingleBtn.textContent = 'Add to Dictionary';
+        });
+
+        function showSingleResult(type, title, message) {
+            singleResult.className = `result show ${type}`;
+            singleResultTitle.textContent = title;
+            singleResultMessage.textContent = message;
+        }
+
+        // Bulk Entry
+        const bulkContainer = document.getElementById('bulkEntriesContainer');
+        const addRowBtn = document.getElementById('addRowBtn');
+        const clearBulkBtn = document.getElementById('clearBulkBtn');
+        const addBulkBtn = document.getElementById('addBulkBtn');
+        const bulkResult = document.getElementById('bulkResult');
+        const bulkResultTitle = document.getElementById('bulkResultTitle');
+        const bulkResultMessage = document.getElementById('bulkResultMessage');
+
+        addRowBtn.addEventListener('click', () => {
+            const row = document.createElement('div');
+            row.className = 'bulk-entry-row';
+            row.innerHTML = `
+                <input type="text" placeholder="English word or sentence" class="bulk-english">
+                <input type="text" placeholder="الترجمة العربية" dir="rtl" class="bulk-arabic">
+                <button class="remove-row-btn" onclick="removeRow(this)">×</button>
+            `;
+            bulkContainer.appendChild(row);
+        });
+
+        function removeRow(btn) {
+            const rows = bulkContainer.querySelectorAll('.bulk-entry-row');
+            if (rows.length > 1) {
+                btn.parentElement.remove();
+            }
+        }
+
+        clearBulkBtn.addEventListener('click', () => {
+            bulkContainer.innerHTML = `
+                <div class="bulk-entry-row">
+                    <input type="text" placeholder="English word or sentence" class="bulk-english">
+                    <input type="text" placeholder="الترجمة العربية" dir="rtl" class="bulk-arabic">
+                    <button class="remove-row-btn" onclick="removeRow(this)">×</button>
+                </div>
+            `;
+            bulkResult.classList.remove('show');
+        });
+
+        addBulkBtn.addEventListener('click', async () => {
+            const rows = bulkContainer.querySelectorAll('.bulk-entry-row');
+            const entries = [];
+
+            rows.forEach(row => {
+                const english = row.querySelector('.bulk-english').value.trim();
+                const arabic = row.querySelector('.bulk-arabic').value.trim();
+                if (english && arabic) {
+                    entries.push({ english, arabic });
+                }
+            });
+
+            if (entries.length === 0) {
+                showBulkResult('error', 'No Entries', 'Please fill in at least one complete row.');
+                return;
+            }
+
+            addBulkBtn.disabled = true;
+            addBulkBtn.textContent = 'Adding...';
+
+            try {
+                const response = await fetch('/api/dictionary/add-bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ entries })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showBulkResult('success', 'Entries Added!', data.message);
+                    clearBulkBtn.click();
+                    loadDictionaryStats();
+                } else {
+                    showBulkResult('error', 'Failed', data.detail || 'An error occurred');
+                }
+            } catch (error) {
+                showBulkResult('error', 'Error', 'Could not connect to server.');
+            }
+
+            addBulkBtn.disabled = false;
+            addBulkBtn.textContent = 'Add All to Dictionary';
+        });
+
+        function showBulkResult(type, title, message) {
+            bulkResult.className = `result show ${type}`;
+            bulkResultTitle.textContent = title;
+            bulkResultMessage.textContent = message;
+        }
     </script>
 </body>
 </html>
