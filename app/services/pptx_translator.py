@@ -3,11 +3,8 @@
 from pptx import Presentation
 from pptx.util import Emu, Pt, Inches
 from pptx.shapes.group import GroupShape
-from pptx.shapes.placeholder import PlaceholderPicture, PlaceholderGraphicFrame
 from pptx.enum.text import PP_ALIGN
-from pptx.enum.shapes import PP_PLACEHOLDER
 from pptx.oxml.ns import qn
-from pptx.oxml import register_element_cls
 from typing import List, Tuple, Optional, Dict
 from lxml import etree
 from copy import deepcopy
@@ -17,80 +14,135 @@ from .pptx_parser import parse_slide_range
 
 
 # ============================================================================
-# BULLET / LIST RTL FUNCTIONS
+# UNGROUP SHAPES (Like VBA code does)
 # ============================================================================
 
-def set_paragraph_full_rtl(paragraph):
+def ungroup_all_shapes(slide):
     """
-    Set paragraph to full RTL mode including bullet alignment.
+    Ungroup all grouped shapes on a slide, recursively.
+    This matches the VBA behavior:
 
-    In RTL mode:
-    - Text flows right-to-left
-    - Bullets appear on the RIGHT side of text
-    - Margins are interpreted from the RIGHT
+    Do While (groupsExist = True)
+      groupsExist = False
+      For Each shp In sld.Shapes
+          If shp.Type = msoGroup Then
+              shp.Ungroup
+              groupsExist = True
+          End If
+      Next shp
+    Loop
+    """
+    max_iterations = 20  # Safety limit
+    iteration = 0
+
+    while iteration < max_iterations:
+        iteration += 1
+        found_group = False
+
+        for shape in list(slide.shapes):
+            if isinstance(shape, GroupShape):
+                print(f"  Ungrouping: '{getattr(shape, 'name', 'unknown')}'")
+                try:
+                    ungroup_shape(shape, slide)
+                    found_group = True
+                    break  # Restart loop after ungrouping
+                except Exception as e:
+                    print(f"  Could not ungroup: {e}")
+
+        if not found_group:
+            break
+
+    print(f"  Ungrouping complete after {iteration} iterations")
+
+
+def ungroup_shape(group_shape, slide):
+    """
+    Ungroup a single group shape, adding children directly to the slide.
+    Children positions are converted from group-relative to slide-absolute.
+    """
+    # Get group position
+    group_left = group_shape.left
+    group_top = group_shape.top
+
+    # Get the shapes tree
+    spTree = slide.shapes._spTree
+
+    # Get group element and its children
+    grpSp = group_shape._element
+
+    # Find all child shapes in the group
+    for child_elem in list(grpSp):
+        tag = etree.QName(child_elem.tag).localname
+
+        if tag in ['sp', 'pic', 'graphicFrame', 'cxnSp', 'grpSp']:
+            # Clone the element
+            new_elem = deepcopy(child_elem)
+
+            # Adjust position (convert from group-relative to absolute)
+            adjust_element_position(new_elem, group_left, group_top)
+
+            # Add to slide's shape tree
+            spTree.append(new_elem)
+
+    # Remove the group from the slide
+    grpSp.getparent().remove(grpSp)
+
+
+def adjust_element_position(elem, offset_x, offset_y):
+    """Adjust element position by adding offsets."""
+    # Find xfrm in spPr or grpSpPr
+    for spPr_tag in ['p:spPr', 'p:grpSpPr', 'a:spPr']:
+        spPr = elem.find('.//' + qn(spPr_tag))
+        if spPr is not None:
+            xfrm = spPr.find(qn('a:xfrm'))
+            if xfrm is not None:
+                off = xfrm.find(qn('a:off'))
+                if off is not None:
+                    x = int(off.get('x', 0))
+                    y = int(off.get('y', 0))
+                    off.set('x', str(x + offset_x))
+                    off.set('y', str(y + offset_y))
+                    return
+
+
+# ============================================================================
+# RTL TEXT DIRECTION (Bullet on RIGHT of text)
+# ============================================================================
+
+def set_paragraph_rtl(paragraph):
+    """
+    Set paragraph to RTL mode.
+
+    In RTL:
+    - Bullet appears on the RIGHT side of text
+    - Text flows to the LEFT of the bullet
+    - This is controlled by a:rtl='1' on pPr
+
+    We do NOT set explicit alignment - let RTL handle it.
     """
     try:
         pPr = paragraph._p.get_or_add_pPr()
 
-        # Set RTL direction - this is the key for bullet position
+        # This is THE key setting for bullet position
+        # When rtl='1', bullet moves to right side of text
         pPr.set(qn('a:rtl'), '1')
 
-        # Set right alignment
-        pPr.set('algn', 'r')
-
-        # Handle margins for RTL
-        # In RTL, marL becomes the RIGHT margin visually
-        # We need to swap marL and marR
-        marL = pPr.get('marL')
-        marR = pPr.get('marR')
-
-        if marL is not None and marR is None:
-            # Move left margin to right margin position
-            pPr.set('marR', marL)
-            # Don't remove marL, just set it to 0
-            pPr.set('marL', '0')
-        elif marL is not None and marR is not None:
-            # Swap them
-            pPr.set('marL', marR)
-            pPr.set('marR', marL)
-
-        # Handle indent (for bullet offset)
-        indent = pPr.get('indent')
-        if indent is not None:
-            # Indent in RTL should work from right side
-            # Keep indent as-is, RTL flag will handle positioning
-            pass
+        # Remove any explicit alignment - let RTL default handle it
+        # In RTL mode, default alignment is RIGHT (start of line)
+        if 'algn' in pPr.attrib:
+            del pPr.attrib['algn']
 
     except Exception as e:
-        print(f"set_paragraph_full_rtl error: {e}")
+        print(f"set_paragraph_rtl error: {e}")
 
 
-def set_textframe_full_rtl(text_frame):
-    """Set entire text frame to RTL with proper bullet handling."""
+def set_textframe_rtl(text_frame):
+    """Set entire text frame to RTL."""
     try:
-        # Set RTL on all paragraphs
         for paragraph in text_frame.paragraphs:
-            set_paragraph_full_rtl(paragraph)
-
-        # Also set text frame level properties
-        try:
-            txBody = text_frame._txBody
-            bodyPr = txBody.find(qn('a:bodyPr'))
-            if bodyPr is not None:
-                # Swap left/right insets
-                lIns = bodyPr.get('lIns')
-                rIns = bodyPr.get('rIns')
-                if lIns is not None and rIns is not None:
-                    bodyPr.set('lIns', rIns)
-                    bodyPr.set('rIns', lIns)
-                elif lIns is not None:
-                    bodyPr.set('rIns', lIns)
-                    bodyPr.set('lIns', '91440')  # Default
-        except:
-            pass
-
+            set_paragraph_rtl(paragraph)
     except Exception as e:
-        print(f"set_textframe_full_rtl error: {e}")
+        print(f"set_textframe_rtl error: {e}")
 
 
 def set_table_rtl(shape):
@@ -112,7 +164,7 @@ def set_table_rtl(shape):
         for row in table.rows:
             for cell in row.cells:
                 if cell.text_frame:
-                    set_textframe_full_rtl(cell.text_frame)
+                    set_textframe_rtl(cell.text_frame)
     except Exception as e:
         print(f"set_table_rtl error: {e}")
 
@@ -121,92 +173,33 @@ def set_table_rtl(shape):
 # SHAPE POSITION MIRRORING
 # ============================================================================
 
-def is_placeholder(shape) -> bool:
-    """Check if shape is a placeholder."""
-    try:
-        return hasattr(shape, 'is_placeholder') and shape.is_placeholder
-    except:
-        return False
-
-
-def get_shape_position(shape):
-    """Get shape position safely."""
-    try:
-        return shape.left, shape.top, shape.width, shape.height
-    except:
-        return None, None, None, None
-
-
-def set_shape_position(shape, left, top=None, width=None, height=None):
-    """Set shape position, handling placeholders specially."""
-    try:
-        # For placeholders, we need to modify the XML directly
-        if is_placeholder(shape):
-            # Get the spPr element
-            sp = shape._element
-            spPr = sp.find(qn('p:spPr'))
-            if spPr is None:
-                spPr = etree.SubElement(sp, qn('p:spPr'))
-
-            # Get or create xfrm element
-            xfrm = spPr.find(qn('a:xfrm'))
-            if xfrm is None:
-                xfrm = etree.SubElement(spPr, qn('a:xfrm'))
-
-            # Get or create off (offset) element
-            off = xfrm.find(qn('a:off'))
-            if off is None:
-                off = etree.SubElement(xfrm, qn('a:off'))
-
-            # Set the position
-            off.set('x', str(int(left)))
-            if top is not None:
-                off.set('y', str(int(top)))
-
-            # Also set via shape properties as backup
-            shape.left = int(left)
-        else:
-            # Regular shapes - just set directly
-            shape.left = int(left)
-
-        return True
-    except Exception as e:
-        print(f"set_shape_position error: {e}")
-        return False
-
-
 def mirror_shape_position(shape, slide_width):
     """
-    Mirror shape position horizontally.
-    new_left = slide_width - old_left - shape_width
+    Mirror shape position: new_left = slide_width - old_left - width
     """
     try:
-        old_left, top, width, height = get_shape_position(shape)
-        if old_left is None or width is None:
-            print(f"  Could not get position for shape: {getattr(shape, 'name', 'unknown')}")
-            return False
-
+        old_left = shape.left
+        width = shape.width
         new_left = slide_width - old_left - width
 
         if new_left < 0:
             new_left = 0
 
-        print(f"  Mirroring '{getattr(shape, 'name', 'unknown')}': {old_left/914400:.2f}in -> {new_left/914400:.2f}in")
+        shape_name = getattr(shape, 'name', 'unknown')
+        print(f"  Mirror '{shape_name}': {old_left/914400:.2f}\" -> {new_left/914400:.2f}\"")
 
-        return set_shape_position(shape, new_left, top)
-
+        shape.left = int(new_left)
+        return True
     except Exception as e:
-        print(f"mirror_shape_position error: {e}")
+        print(f"  Mirror error: {e}")
         return False
 
 
 def flip_shape_horizontal(shape):
-    """Apply horizontal flip to directional shapes."""
+    """Apply horizontal flip to shape."""
     try:
         sp = shape._element
-        spPr = sp.find(qn('p:spPr'))
-        if spPr is None:
-            spPr = sp.find(qn('a:spPr'))
+        spPr = sp.find(qn('p:spPr')) or sp.find(qn('a:spPr'))
         if spPr is None:
             return
 
@@ -215,30 +208,39 @@ def flip_shape_horizontal(shape):
             current = xfrm.get('flipH', '0')
             xfrm.set('flipH', '0' if current == '1' else '1')
     except Exception as e:
-        print(f"flip_shape_horizontal error: {e}")
+        print(f"flip error: {e}")
 
 
 # ============================================================================
 # SHAPE DETECTION
 # ============================================================================
 
+def is_title_shape(shape, slide):
+    """Check if shape is the slide title."""
+    try:
+        if hasattr(slide.shapes, 'title') and slide.shapes.title is not None:
+            if shape == slide.shapes.title:
+                return True
+            # Also check by text content
+            if shape.has_text_frame and slide.shapes.title.has_text_frame:
+                if shape.text_frame.text == slide.shapes.title.text_frame.text:
+                    return True
+    except:
+        pass
+    return False
+
+
 def is_arrow_shape(shape) -> bool:
     """Check if shape is directional."""
-    try:
-        name = getattr(shape, 'name', '').lower()
-        keywords = ['arrow', 'chevron', 'triangle', 'pointer', 'flow', 'connector']
-        return any(kw in name for kw in keywords)
-    except:
-        return False
+    name = getattr(shape, 'name', '').lower()
+    keywords = ['arrow', 'chevron', 'triangle', 'pointer', 'flow']
+    return any(kw in name for kw in keywords)
 
 
 def is_thinkcell(shape) -> bool:
     """Check if shape is ThinkCell."""
-    try:
-        name = getattr(shape, 'name', '').lower()
-        return 'thinkcell' in name or 'think-cell' in name
-    except:
-        return False
+    name = getattr(shape, 'name', '').lower()
+    return 'thinkcell' in name or 'think-cell' in name
 
 
 # ============================================================================
@@ -275,84 +277,91 @@ def translate_table_text(shape, translations):
 
 
 # ============================================================================
-# MAIN PROCESSING
+# MAIN SLIDE PROCESSING
 # ============================================================================
 
-def process_shape(shape, slide_width, do_mirror, translations):
-    """Process a single shape for RTL conversion."""
-
-    shape_name = getattr(shape, 'name', 'unknown')
-    is_ph = is_placeholder(shape)
-
-    print(f"  Processing: '{shape_name}' (placeholder={is_ph})")
-
-    # Handle ThinkCell
-    if is_thinkcell(shape):
-        if do_mirror:
-            mirror_shape_position(shape, slide_width)
-        return
-
-    # Translate and set RTL for text
-    if shape.has_text_frame:
-        translate_shape_text(shape, translations)
-        set_textframe_full_rtl(shape.text_frame)
-
-    # Handle tables
-    if shape.has_table:
-        translate_table_text(shape, translations)
-        set_table_rtl(shape)
-
-    # Mirror position
-    if do_mirror:
-        mirror_shape_position(shape, slide_width)
-
-    # Flip directional shapes
-    if do_mirror and is_arrow_shape(shape):
-        flip_shape_horizontal(shape)
-
-
-def process_group(group, slide_width, do_mirror, translations):
-    """Process a grouped shape."""
-
-    print(f"  Processing group: '{getattr(group, 'name', 'unknown')}'")
-
-    # Mirror the entire group
-    if do_mirror:
-        mirror_shape_position(group, slide_width)
-
-    # Process children for text/RTL only (don't mirror - relative to group)
-    for child in group.shapes:
-        if isinstance(child, GroupShape):
-            process_group(child, slide_width, False, translations)
-        else:
-            if child.has_text_frame:
-                translate_shape_text(child, translations)
-                set_textframe_full_rtl(child.text_frame)
-            if child.has_table:
-                translate_table_text(child, translations)
-                set_table_rtl(child)
-            if is_arrow_shape(child):
-                flip_shape_horizontal(child)
-
-
 def process_slide(slide, slide_width, do_mirror=True):
-    """Process entire slide for RTL conversion."""
+    """
+    Process slide for RTL conversion.
+
+    Following VBA logic:
+    1. Ungroup all groups first
+    2. For title: only change text direction (no position mirror)
+    3. For other shapes with text: mirror position + change text direction
+    4. For tables: mirror position + change table direction
+    5. For shapes without text: just mirror position
+    """
     translations = []
-    shapes = list(slide.shapes)
 
-    print(f"  Total shapes: {len(shapes)}")
+    # Step 1: Ungroup all groups (like VBA does)
+    if do_mirror:
+        print("  Step 1: Ungrouping shapes...")
+        ungroup_all_shapes(slide)
 
-    for shape in shapes:
+    # Step 2: Get the title text for comparison
+    title_text = None
+    try:
+        if hasattr(slide.shapes, 'title') and slide.shapes.title is not None:
+            if slide.shapes.title.has_text_frame:
+                title_text = slide.shapes.title.text_frame.text
+                print(f"  Title text: '{title_text[:50]}...' " if len(title_text) > 50 else f"  Title text: '{title_text}'")
+    except:
+        pass
+
+    # Step 3: Process all shapes
+    print(f"  Step 2: Processing {len(slide.shapes)} shapes...")
+
+    for shape in list(slide.shapes):
+        shape_name = getattr(shape, 'name', 'unknown')
+
+        # Skip groups (should be ungrouped by now, but just in case)
         if isinstance(shape, GroupShape):
-            process_group(shape, slide_width, do_mirror, translations)
+            print(f"  Skipping remaining group: '{shape_name}'")
+            continue
+
+        # Check if this is the title
+        is_title = False
+        if title_text and shape.has_text_frame:
+            if shape.text_frame.text == title_text:
+                is_title = True
+
+        # Handle based on shape type (following VBA logic)
+        if shape.has_text_frame:
+            # Translate text
+            translate_shape_text(shape, translations)
+
+            # Set RTL text direction
+            set_textframe_rtl(shape.text_frame)
+
+            if is_title:
+                # Title: only change text direction, no position mirror
+                print(f"  Title '{shape_name}': RTL text only (no mirror)")
+            else:
+                # Other text shapes: mirror position
+                if do_mirror:
+                    mirror_shape_position(shape, slide_width)
+
+        elif shape.has_table:
+            # Tables: translate, set RTL, mirror position
+            translate_table_text(shape, translations)
+            set_table_rtl(shape)
+            if do_mirror:
+                mirror_shape_position(shape, slide_width)
+
         else:
-            process_shape(shape, slide_width, do_mirror, translations)
+            # Shapes without text: just mirror position
+            if do_mirror:
+                mirror_shape_position(shape, slide_width)
+
+        # Flip directional shapes
+        if do_mirror and is_arrow_shape(shape):
+            flip_shape_horizontal(shape)
 
     return translations
 
 
 # ============================================================================
-# MAIN ENTRY POINTS
+# MAIN ENTRY POINT
 # ============================================================================
 
 def translate_pptx_in_place(
@@ -364,30 +373,29 @@ def translate_pptx_in_place(
     """
     Translate PPTX and convert to RTL layout.
 
-    This handles:
-    1. Text translation (English -> Arabic)
-    2. RTL text direction with proper bullet alignment
-    3. Shape position mirroring (full layout flip)
-    4. Table RTL direction
-    5. Directional shape flipping (arrows, etc.)
+    Process:
+    1. Ungroup all grouped shapes (like VBA code)
+    2. For each shape:
+       - If title: change text direction only
+       - If text shape: mirror position + change text direction
+       - If table: mirror position + change table direction
+       - If other: mirror position only
+    3. Flip directional shapes (arrows, etc.)
     """
     print(f"\n{'='*60}")
-    print(f"PPTX RTL Translator")
+    print("PPTX RTL TRANSLATOR")
     print(f"{'='*60}")
     print(f"Input: {input_path}")
     print(f"Output: {output_path}")
-    print(f"Mirror layout: {mirror_layout}")
+    print(f"Mirror: {mirror_layout}")
 
     prs = Presentation(input_path)
     total_slides = len(prs.slides)
     slide_width = prs.slide_width
 
-    print(f"\nPresentation info:")
-    print(f"  Slides: {total_slides}")
-    print(f"  Width: {slide_width} EMUs ({slide_width/914400:.2f} inches)")
+    print(f"\nSlide width: {slide_width/914400:.2f} inches")
 
     slides_to_process = parse_slide_range(slide_range or "", total_slides)
-    print(f"  Processing: {sorted(slides_to_process)}")
 
     all_translations = []
     processed_slides = 0
@@ -411,9 +419,9 @@ def translate_pptx_in_place(
             })
 
     print(f"\n{'='*60}")
-    print(f"Saving presentation...")
+    print("Saving...")
     prs.save(output_path)
-    print(f"Done! Translated {len(all_translations)} text items.")
+    print(f"Done! {len(all_translations)} items translated.")
     print(f"{'='*60}\n")
 
     return {
