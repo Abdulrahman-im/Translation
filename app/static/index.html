@@ -598,6 +598,44 @@
             color: #999;
             font-size: 0.8rem;
         }
+
+        /* Slide Range Selection */
+        .slide-range-container {
+            margin-top: 15px;
+            margin-bottom: 5px;
+            padding: 15px;
+            background: var(--pif-light-gray);
+            border-radius: 8px;
+            border-left: 3px solid var(--pif-green);
+        }
+
+        .slide-range-label {
+            font-weight: 600;
+            color: var(--pif-black);
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .slide-range-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .slide-range-input:focus {
+            outline: none;
+            border-color: var(--pif-green);
+        }
+
+        .slide-range-hint {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: var(--pif-gray);
+        }
     </style>
 </head>
 <body>
@@ -625,6 +663,13 @@
             </div>
 
             <div class="selected-file" id="selectedFile"></div>
+
+            <!-- Slide Range Selection -->
+            <div class="slide-range-container" id="slideRangeContainer" style="display: none;">
+                <label class="slide-range-label">Slide Range (optional)</label>
+                <input type="text" id="slideRangeInput" class="slide-range-input" placeholder="e.g., 1-10, 3, 5-7 or leave empty for all">
+                <p class="slide-range-hint">Specify which slides to translate. Examples: "1-10", "1,3,5", "1-5,8,10-12", or leave empty for all slides.</p>
+            </div>
 
             <button class="btn btn-primary" id="uploadBtn" disabled>
                 Upload & Translate
@@ -840,6 +885,8 @@
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const selectedFile = document.getElementById('selectedFile');
+        const slideRangeContainer = document.getElementById('slideRangeContainer');
+        const slideRangeInput = document.getElementById('slideRangeInput');
         const uploadBtn = document.getElementById('uploadBtn');
         const progressContainer = document.getElementById('progressContainer');
         const progressFill = document.getElementById('progressFill');
@@ -885,6 +932,7 @@
             currentFile = file;
             selectedFile.textContent = `Selected: ${file.name}`;
             selectedFile.classList.add('show');
+            slideRangeContainer.style.display = 'block';
             uploadBtn.disabled = false;
             result.classList.remove('show');
         }
@@ -910,6 +958,12 @@
             try {
                 const formData = new FormData();
                 formData.append('file', currentFile);
+
+                // Add slide range if specified
+                const slideRange = slideRangeInput.value.trim();
+                if (slideRange) {
+                    formData.append('slide_range', slideRange);
+                }
 
                 progressText.textContent = 'Translating...';
 
@@ -956,6 +1010,8 @@
             currentFile = null;
             fileInput.value = '';
             selectedFile.classList.remove('show');
+            slideRangeContainer.style.display = 'none';
+            slideRangeInput.value = '';
             uploadBtn.disabled = true;
             result.classList.remove('show');
             progressContainer.classList.remove('show');

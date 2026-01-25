@@ -4,7 +4,7 @@ import os
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Body
+from fastapi import FastAPI, File, UploadFile, HTTPException, Body, Form
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,9 +52,16 @@ app.add_middleware(
 
 
 @app.post("/api/upload")
-async def upload_pptx(file: UploadFile = File(...)):
+async def upload_pptx(
+    file: UploadFile = File(...),
+    slide_range: Optional[str] = Form(None)
+):
     """
     Upload a PPTX file, extract text, translate, and return file ID.
+
+    Args:
+        file: The PPTX file to upload
+        slide_range: Optional slide range (e.g., "1-10", "1,3,5", "all")
 
     Returns:
         JSON with file_id and filename for download
@@ -79,8 +86,8 @@ async def upload_pptx(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
     try:
-        # Extract text from PPTX
-        extracted_texts = extract_text_from_pptx(str(upload_path))
+        # Extract text from PPTX (with optional slide range filtering)
+        extracted_texts = extract_text_from_pptx(str(upload_path), slide_range=slide_range)
 
         if not extracted_texts:
             raise HTTPException(
