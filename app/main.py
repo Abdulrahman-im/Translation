@@ -56,7 +56,7 @@ async def upload_pptx(
     file: UploadFile = File(...),
     slide_range: Optional[str] = Form(None),
     output_format: Optional[str] = Form("pptx"),
-    mirror_layout: Optional[bool] = Form(True)
+    mirror_layout: Optional[str] = Form("true")
 ):
     """
     Upload a PPTX file, translate it, and return the result.
@@ -65,7 +65,7 @@ async def upload_pptx(
         file: The PPTX file to upload
         slide_range: Optional slide range (e.g., "1-10", "1,3,5", "all")
         output_format: Output format - "pptx" (translated PPTX), "excel" (Excel only), or "both"
-        mirror_layout: Whether to mirror layout for RTL (default True)
+        mirror_layout: Whether to mirror layout for RTL (default "true")
 
     Returns:
         JSON with file_id and filenames for download
@@ -80,6 +80,9 @@ async def upload_pptx(
     # Validate output format
     if output_format not in ["pptx", "excel", "both"]:
         output_format = "pptx"
+
+    # Convert mirror_layout string to boolean
+    do_mirror = mirror_layout.lower() in ("true", "1", "yes", "on") if mirror_layout else True
 
     # Generate unique file ID
     file_id = str(uuid.uuid4())
@@ -109,7 +112,7 @@ async def upload_pptx(
                 str(upload_path),
                 str(pptx_output_path),
                 slide_range=slide_range,
-                mirror_layout=mirror_layout if mirror_layout is not None else True
+                mirror_layout=do_mirror
             )
 
             result["pptx_filename"] = pptx_output_filename

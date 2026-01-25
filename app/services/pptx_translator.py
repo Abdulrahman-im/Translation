@@ -1,13 +1,11 @@
 """PPTX in-place translation and RTL mirroring service."""
 
-import copy
 from pptx import Presentation
 from pptx.util import Emu
 from pptx.shapes.group import GroupShape
 from pptx.shapes.base import BaseShape
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.text import PP_ALIGN
 from pptx.oxml.ns import qn
-from pptx.oxml import parse_xml
 from typing import List, Tuple, Optional, Set, Dict
 from lxml import etree
 
@@ -25,55 +23,45 @@ def set_paragraph_rtl(paragraph):
         paragraph.alignment = PP_ALIGN.RIGHT
 
 
-def set_paragraph_ltr(paragraph):
-    """Set paragraph to LTR direction."""
-    pPr = paragraph._p.get_or_add_pPr()
-    pPr.set(qn('a:rtl'), '0')
-
-
-def get_paragraph_direction(paragraph) -> str:
-    """Get paragraph text direction (rtl or ltr)."""
-    pPr = paragraph._p.find(qn('a:pPr'))
-    if pPr is not None:
-        rtl = pPr.get(qn('a:rtl'))
-        if rtl == '1':
-            return 'rtl'
-    return 'ltr'
-
-
 def set_table_direction_rtl(table):
     """Set table direction to RTL."""
-    tbl = table._tbl
-    tblPr = tbl.find(qn('a:tblPr'))
-    if tblPr is None:
-        tblPr = etree.SubElement(tbl, qn('a:tblPr'))
-    tblPr.set('rtl', '1')
+    try:
+        tbl = table._tbl
+        tblPr = tbl.find(qn('a:tblPr'))
+        if tblPr is None:
+            tblPr = etree.SubElement(tbl, qn('a:tblPr'))
+        tblPr.set('rtl', '1')
+    except Exception as e:
+        print(f"Could not set table RTL: {e}")
 
 
 def mirror_shape_position(shape, slide_width):
     """Mirror shape position horizontally (flip from LTR to RTL layout)."""
     try:
+        current_left = shape.left
+        current_width = shape.width
         # Calculate new left position: slideWidth - left - width
-        new_left = slide_width - shape.left - shape.width
-        shape.left = new_left
+        new_left = slide_width - current_left - current_width
+
+        # Ensure we don't set negative values
+        if new_left >= 0:
+            shape.left = new_left
+        else:
+            # If new position would be negative, place at edge
+            shape.left = 0
+
     except Exception as e:
-        print(f"Could not mirror shape: {e}")
+        print(f"Could not mirror shape '{getattr(shape, 'name', 'unknown')}': {e}")
 
 
 def is_thinkcell_shape(shape) -> bool:
     """Check if a shape is a ThinkCell object."""
     try:
-        # ThinkCell shapes typically have specific naming patterns or are OLE objects
         if hasattr(shape, 'name'):
             name_lower = shape.name.lower()
             if 'thinkcell' in name_lower or 'think-cell' in name_lower:
                 return True
 
-        # Check for OLE objects which ThinkCell often uses
-        if hasattr(shape, 'ole_format'):
-            return True
-
-        # Check shape XML for ThinkCell markers
         if hasattr(shape, '_element'):
             xml_str = etree.tostring(shape._element, encoding='unicode')
             if 'thinkcell' in xml_str.lower() or 'think-cell' in xml_str.lower():
@@ -83,90 +71,152 @@ def is_thinkcell_shape(shape) -> bool:
     return False
 
 
-def translate_and_mirror_shape(shape, slide_width, do_mirror: bool = True):
+def get_all_shapes_flat(slide) -> List:
     """
-    Translate text in a shape and mirror its position.
+    Get all shapes from a slide, ungrouping groups recursively.
+    Returns a flat list of all shapes.
+    """
+    all_shapes = []
 
-    Args:
-        shape: The PowerPoint shape to process
-        slide_width: Width of the slide for mirroring calculations
-        do_mirror: Whether to mirror the position (True for LTR->RTL conversion)
+    def collect_shapes(shapes):
+        for shape in shapes:
+            if isinstance(shape, GroupShape):
+                # Add the group itself (we'll mirror it)
+                all_shapes.append(('group', shape))
+                # Also collect children for text processing
+                collect_shapes(shape.shapes)
+            else:
+                all_shapes.append(('shape', shape))
 
-    Returns:
-        List of (original_text, translated_text) tuples for logging
+    collect_shapes(slide.shapes)
+    return all_shapes
+
+
+def is_title_shape(shape, slide) -> bool:
+    """Check if a shape is the slide title."""
+    try:
+        # Check if this is the title placeholder
+        if hasattr(slide, 'shapes') and hasattr(slide.shapes, 'title'):
+            title_shape = slide.shapes.title
+            if title_shape is not None and shape == title_shape:
+                return True
+
+        # Also check by placeholder type
+        if hasattr(shape, 'is_placeholder') and shape.is_placeholder:
+            if hasattr(shape, 'placeholder_format'):
+                ph_type = shape.placeholder_format.type
+                # Title placeholder types
+                if ph_type in [1, 3]:  # TITLE = 1, CENTER_TITLE = 3
+                    return True
+    except:
+        pass
+    return False
+
+
+def translate_shape_text(shape, translations_list):
+    """Translate all text in a shape and set RTL direction."""
+    if not shape.has_text_frame:
+        return
+
+    text_frame = shape.text_frame
+    for paragraph in text_frame.paragraphs:
+        for run in paragraph.runs:
+            original_text = run.text.strip()
+            if original_text:
+                translated_text = translate_text(original_text)
+                run.text = translated_text
+                translations_list.append((original_text, translated_text))
+
+        # Set paragraph to RTL
+        set_paragraph_rtl(paragraph)
+
+
+def translate_table_text(shape, translations_list):
+    """Translate all text in a table and set RTL direction."""
+    if not shape.has_table:
+        return
+
+    table = shape.table
+
+    # Set table direction to RTL
+    set_table_direction_rtl(table)
+
+    # Process each cell
+    for row in table.rows:
+        for cell in row.cells:
+            if cell.text_frame:
+                for paragraph in cell.text_frame.paragraphs:
+                    for run in paragraph.runs:
+                        original_text = run.text.strip()
+                        if original_text:
+                            translated_text = translate_text(original_text)
+                            run.text = translated_text
+                            translations_list.append((original_text, translated_text))
+
+                    # Set paragraph to RTL
+                    set_paragraph_rtl(paragraph)
+
+
+def process_slide(slide, slide_width, do_mirror: bool = True) -> List[Tuple[str, str]]:
+    """
+    Process a single slide: translate text and mirror layout.
+
+    Based on VBA logic:
+    1. Title shape: only change text direction, don't mirror position
+    2. Other text shapes: mirror position AND change text direction
+    3. Tables: mirror position, change table direction, change cell text directions
+    4. Other shapes: just mirror position
+
+    Returns list of (original, translated) tuples.
     """
     translations = []
 
-    # Skip ThinkCell shapes for now (they have special handling)
-    if is_thinkcell_shape(shape):
-        # Still mirror position if requested
-        if do_mirror:
-            mirror_shape_position(shape, slide_width)
-        return translations
+    # Process all shapes on the slide
+    for shape in list(slide.shapes):
+        # Skip ThinkCell shapes
+        if is_thinkcell_shape(shape):
+            if do_mirror:
+                mirror_shape_position(shape, slide_width)
+            continue
 
-    # Handle grouped shapes recursively
-    if isinstance(shape, GroupShape):
-        # For groups, we need to process children but be careful with positioning
-        # The group itself should be mirrored, not individual children
-        if do_mirror:
-            mirror_shape_position(shape, slide_width)
+        # Handle grouped shapes
+        if isinstance(shape, GroupShape):
+            # Mirror the group position
+            if do_mirror:
+                mirror_shape_position(shape, slide_width)
 
-        for child_shape in shape.shapes:
-            child_translations = translate_and_mirror_shape(
-                child_shape, slide_width, do_mirror=False  # Don't mirror children, group is mirrored
-            )
-            translations.extend(child_translations)
-        return translations
+            # Process text in children (but don't mirror children - they're relative to group)
+            for child in shape.shapes:
+                translate_shape_text(child, translations)
+                if child.has_table:
+                    translate_table_text(child, translations)
+            continue
 
-    # Handle shapes with text frames
-    if shape.has_text_frame:
-        text_frame = shape.text_frame
+        # Check if this is the title
+        is_title = is_title_shape(shape, slide)
 
-        for paragraph in text_frame.paragraphs:
-            for run in paragraph.runs:
-                original_text = run.text.strip()
-                if original_text:
-                    # Translate the text
-                    translated_text = translate_text(original_text)
-                    run.text = translated_text
-                    translations.append((original_text, translated_text))
+        # Handle shapes with text frames
+        if shape.has_text_frame:
+            # Translate text and set RTL
+            translate_shape_text(shape, translations)
 
-            # Set paragraph to RTL
-            set_paragraph_rtl(paragraph)
+            # Mirror position ONLY if not title
+            if do_mirror and not is_title:
+                mirror_shape_position(shape, slide_width)
 
-        # Mirror the shape position
-        if do_mirror:
-            mirror_shape_position(shape, slide_width)
+        # Handle tables
+        elif shape.has_table:
+            # Translate table and set RTL
+            translate_table_text(shape, translations)
 
-    # Handle tables
-    if shape.has_table:
-        table = shape.table
+            # Mirror position
+            if do_mirror:
+                mirror_shape_position(shape, slide_width)
 
-        # Set table direction to RTL
-        set_table_direction_rtl(table)
-
-        # Process each cell
-        for row in table.rows:
-            for cell in row.cells:
-                if cell.text_frame:
-                    for paragraph in cell.text_frame.paragraphs:
-                        for run in paragraph.runs:
-                            original_text = run.text.strip()
-                            if original_text:
-                                translated_text = translate_text(original_text)
-                                run.text = translated_text
-                                translations.append((original_text, translated_text))
-
-                        # Set paragraph to RTL
-                        set_paragraph_rtl(paragraph)
-
-        # Mirror the table position
-        if do_mirror:
-            mirror_shape_position(shape, slide_width)
-
-    # For shapes without text, just mirror position
-    elif do_mirror and not shape.has_text_frame and not shape.has_table:
-        mirror_shape_position(shape, slide_width)
+        # Handle other shapes (images, shapes without text, etc.)
+        else:
+            if do_mirror:
+                mirror_shape_position(shape, slide_width)
 
     return translations
 
@@ -191,6 +241,7 @@ def translate_pptx_in_place(
     """
     prs = Presentation(input_path)
     total_slides = len(prs.slides)
+    slide_width = prs.slide_width
 
     # Parse slide range
     slides_to_process = parse_slide_range(slide_range or "", total_slides)
@@ -204,19 +255,16 @@ def translate_pptx_in_place(
             continue
 
         processed_slides += 1
-        slide_width = prs.slide_width
 
-        # Process all shapes on the slide
-        for shape in slide.shapes:
-            shape_translations = translate_and_mirror_shape(
-                shape, slide_width, do_mirror=mirror_layout
-            )
-            for orig, trans in shape_translations:
-                all_translations.append({
-                    "slide": slide_num,
-                    "original": orig,
-                    "translated": trans
-                })
+        # Process the slide
+        slide_translations = process_slide(slide, slide_width, do_mirror=mirror_layout)
+
+        for orig, trans in slide_translations:
+            all_translations.append({
+                "slide": slide_num,
+                "original": orig,
+                "translated": trans
+            })
 
     # Save the translated presentation
     prs.save(output_path)
