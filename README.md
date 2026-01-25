@@ -4,9 +4,12 @@ A web application that translates PowerPoint presentations from English to Arabi
 
 ## Features
 
-- **PPTX Translation**: Upload PowerPoint files and receive translations in Excel format
+- **In-Place PPTX Translation**: Upload PowerPoint files and receive translated PPTX files with Arabic text
+- **RTL Layout Mirroring**: Automatically mirrors slide layouts from left-to-right to right-to-left for Arabic
+- **Flexible Output**: Choose between translated PPTX, Excel, or both formats
+- **Slide Range Selection**: Translate specific slides (e.g., "1-10", "1,3,5", "1-5,8,10-12")
 - **Semantic Dictionary**: Uses an LLM to find similar translations from a dictionary for better context
-- **Dictionary Builder**: Auto-build translation dictionaries from parallel English/Arabic PPTX files
+- **Dictionary Builder**: Auto-build translation dictionaries from parallel English/Arabic PPTX files with smart heuristics
 - **LLM Validation**: Validates translation pairs using AI to ensure accuracy
 - **Caching**: In-memory caching to avoid duplicate API calls
 
@@ -20,6 +23,7 @@ Translation_site/
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── pptx_parser.py      # PPTX text extraction
+│   │   ├── pptx_translator.py  # In-place translation & RTL mirroring
 │   │   ├── translator.py       # Translation with LLM API
 │   │   ├── excel_writer.py     # Excel file generation
 │   │   ├── dictionary.py       # Dictionary management
@@ -29,7 +33,7 @@ Translation_site/
 ├── data/
 │   └── dictionary.json         # Translation dictionary
 ├── uploads/                    # Temporary upload storage
-├── outputs/                    # Generated Excel files
+├── outputs/                    # Generated output files
 ├── requirements.txt
 └── README.md
 ```
@@ -71,10 +75,14 @@ http://localhost:8000
 
 ### Translate PPTX
 
-1. Go to the **"Translate PPTX"** tab
+1. Go to the **"Translate"** tab
 2. Drag and drop a PowerPoint file (or click to browse)
-3. Click **"Upload & Translate"**
-4. Download the Excel file with translations
+3. Configure options:
+   - **Slide Range**: Specify which slides to translate (e.g., "1-10", leave empty for all)
+   - **Output Format**: Choose Translated PPTX, Excel Only, or Both
+   - **Mirror Layout**: Enable/disable RTL layout mirroring for Arabic
+4. Click **"Upload & Translate"**
+5. Download your translated files
 
 ### Build Dictionary
 

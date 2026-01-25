@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 
-from .services import extract_text_from_pptx, translate_text, create_excel_file
+from .services import extract_text_from_pptx, translate_text, create_excel_file, translate_pptx_in_place
 from .services.dictionary import get_all_entries, add_entry, add_entries_bulk, get_dictionary_stats
 
 
@@ -54,17 +54,21 @@ app.add_middleware(
 @app.post("/api/upload")
 async def upload_pptx(
     file: UploadFile = File(...),
-    slide_range: Optional[str] = Form(None)
+    slide_range: Optional[str] = Form(None),
+    output_format: Optional[str] = Form("pptx"),
+    mirror_layout: Optional[bool] = Form(True)
 ):
     """
-    Upload a PPTX file, extract text, translate, and return file ID.
+    Upload a PPTX file, translate it, and return the result.
 
     Args:
         file: The PPTX file to upload
         slide_range: Optional slide range (e.g., "1-10", "1,3,5", "all")
+        output_format: Output format - "pptx" (translated PPTX), "excel" (Excel only), or "both"
+        mirror_layout: Whether to mirror layout for RTL (default True)
 
     Returns:
-        JSON with file_id and filename for download
+        JSON with file_id and filenames for download
     """
     # Validate file type
     if not file.filename.endswith(('.pptx', '.PPTX')):
@@ -72,6 +76,10 @@ async def upload_pptx(
             status_code=400,
             detail="Invalid file type. Please upload a .pptx file"
         )
+
+    # Validate output format
+    if output_format not in ["pptx", "excel", "both"]:
+        output_format = "pptx"
 
     # Generate unique file ID
     file_id = str(uuid.uuid4())
@@ -86,36 +94,69 @@ async def upload_pptx(
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
     try:
-        # Extract text from PPTX (with optional slide range filtering)
-        extracted_texts = extract_text_from_pptx(str(upload_path), slide_range=slide_range)
+        result = {
+            "success": True,
+            "file_id": file_id,
+            "output_format": output_format
+        }
 
-        if not extracted_texts:
-            raise HTTPException(
-                status_code=400,
-                detail="No translatable text found in the PowerPoint file"
+        # Generate translated PPTX (for "pptx" or "both")
+        if output_format in ["pptx", "both"]:
+            pptx_output_filename = f"{file_id}_translated.pptx"
+            pptx_output_path = OUTPUT_DIR / pptx_output_filename
+
+            translation_result = translate_pptx_in_place(
+                str(upload_path),
+                str(pptx_output_path),
+                slide_range=slide_range,
+                mirror_layout=mirror_layout if mirror_layout is not None else True
             )
 
-        # Translate all texts
-        translations = []
-        for slide_num, original_text in extracted_texts:
-            translated_text = translate_text(original_text)
-            translations.append((slide_num, original_text, translated_text))
+            result["pptx_filename"] = pptx_output_filename
+            result["total_phrases"] = translation_result["total_translations"]
+            result["total_slides"] = translation_result["total_slides"]
+            result["processed_slides"] = translation_result["processed_slides"]
 
-        # Generate Excel file
-        output_filename = f"{file_id}_translations.xlsx"
-        output_path = OUTPUT_DIR / output_filename
-        create_excel_file(translations, str(output_path))
+            # If also need Excel, create it from the translation results
+            if output_format == "both":
+                excel_output_filename = f"{file_id}_translations.xlsx"
+                excel_output_path = OUTPUT_DIR / excel_output_filename
+                excel_data = [
+                    (t["slide"], t["original"], t["translated"])
+                    for t in translation_result["translations"]
+                ]
+                create_excel_file(excel_data, str(excel_output_path))
+                result["excel_filename"] = excel_output_filename
+
+            result["message"] = f"Successfully translated {translation_result['total_translations']} phrases in {translation_result['processed_slides']} slides"
+
+        # Generate Excel only (legacy mode)
+        elif output_format == "excel":
+            extracted_texts = extract_text_from_pptx(str(upload_path), slide_range=slide_range)
+
+            if not extracted_texts:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No translatable text found in the PowerPoint file"
+                )
+
+            translations = []
+            for slide_num, original_text in extracted_texts:
+                translated_text = translate_text(original_text)
+                translations.append((slide_num, original_text, translated_text))
+
+            excel_output_filename = f"{file_id}_translations.xlsx"
+            excel_output_path = OUTPUT_DIR / excel_output_filename
+            create_excel_file(translations, str(excel_output_path))
+
+            result["excel_filename"] = excel_output_filename
+            result["total_phrases"] = len(translations)
+            result["message"] = f"Successfully processed {len(translations)} phrases"
 
         # Clean up uploaded file
         os.remove(upload_path)
 
-        return {
-            "success": True,
-            "file_id": file_id,
-            "filename": output_filename,
-            "total_phrases": len(translations),
-            "message": f"Successfully processed {len(translations)} phrases"
-        }
+        return result
 
     except HTTPException:
         raise
@@ -127,20 +168,37 @@ async def upload_pptx(
 
 
 @app.get("/api/download/{file_id}")
-async def download_excel(file_id: str):
+async def download_file(file_id: str, file_type: Optional[str] = "pptx"):
     """
-    Download the generated Excel file.
+    Download the generated file (PPTX or Excel).
 
     Args:
         file_id: The file ID returned from upload
+        file_type: Type of file to download - "pptx" or "excel"
 
     Returns:
-        Excel file download
+        File download (PPTX or Excel)
     """
-    output_filename = f"{file_id}_translations.xlsx"
+    if file_type == "excel":
+        output_filename = f"{file_id}_translations.xlsx"
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    else:
+        output_filename = f"{file_id}_translated.pptx"
+        media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
     output_path = OUTPUT_DIR / output_filename
 
     if not output_path.exists():
+        # Try alternative filename for backward compatibility
+        if file_type != "excel":
+            alt_filename = f"{file_id}_translations.xlsx"
+            alt_path = OUTPUT_DIR / alt_filename
+            if alt_path.exists():
+                return FileResponse(
+                    path=str(alt_path),
+                    filename=alt_filename,
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
         raise HTTPException(
             status_code=404,
             detail="File not found. It may have expired or been deleted."
@@ -149,7 +207,7 @@ async def download_excel(file_id: str):
     return FileResponse(
         path=str(output_path),
         filename=output_filename,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        media_type=media_type
     )
 
 
