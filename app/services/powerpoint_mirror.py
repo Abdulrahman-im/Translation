@@ -1,6 +1,5 @@
 """
 Use PowerPoint directly (via AppleScript) for RTL mirroring.
-This ensures 100% compatibility with the VBA macro logic.
 """
 
 import subprocess
@@ -19,17 +18,13 @@ def check_powerpoint_available():
 def mirror_with_powerpoint(input_path: str, output_path: str, slide_numbers: list = None) -> bool:
     """
     Mirror slide layouts using PowerPoint directly via AppleScript.
-    This runs the EXACT same logic as the VBA macro.
     """
     if not check_powerpoint_available():
         raise RuntimeError("PowerPoint for Mac is not installed")
 
-    # Copy input to output location (PowerPoint will modify in place)
     shutil.copy2(input_path, output_path)
     abs_path = os.path.abspath(output_path)
 
-    # Simpler AppleScript that just runs the VBA macro
-    # First, we try to use AppleScript to do basic mirroring
     applescript = f'''
 tell application "Microsoft PowerPoint"
     activate
@@ -57,8 +52,7 @@ tell application "Microsoft PowerPoint"
                     try
                         set shp to shape i of sld
                         set shpType to shape type of shp
-                        -- Check if it's a group (type 6 in PowerPoint)
-                        if shpType is 6 then
+                        if shpType = 6 then
                             ungroup shp
                             set groupsExist to true
                             exit repeat
@@ -74,7 +68,8 @@ tell application "Microsoft PowerPoint"
             repeat with i from 1 to (count of shapes of sld)
                 set shp to shape i of sld
                 try
-                    if placeholder type of shp is title placeholder then
+                    set pType to placeholder type of shp
+                    if pType = 1 then
                         if has text frame of shp then
                             set slideTitle to content of text range of text frame of shp
                             exit repeat
@@ -84,7 +79,7 @@ tell application "Microsoft PowerPoint"
             end repeat
         end try
 
-        -- PROCESS ALL SHAPES
+        -- PROCESS ALL SHAPES - MIRROR POSITIONS
         set shpCount to count of shapes of sld
         repeat with i from 1 to shpCount
             try
@@ -100,54 +95,23 @@ tell application "Microsoft PowerPoint"
                     end if
                 end try
 
-                -- Check if it's a table (type 19)
-                set shpType to shape type of shp
-                set isTable to (shpType is 19)
-
-                if hasText then
-                    if shpText is equal to slideTitle and slideTitle is not "" then
-                        -- TITLE: Only change text direction, NO mirror
-                        try
-                            tell text frame of shp
-                                set paragraph direction to right to left
-                            end tell
-                        end try
-                    else
-                        -- TEXT SHAPE: Mirror position + text direction
-                        try
-                            set oldLeft to left position of shp
-                            set shpW to width of shp
-                            set newLeft to slideW - oldLeft - shpW
-                            if newLeft < 0 then set newLeft to 0
-                            set left position of shp to newLeft
-                        end try
-                        try
-                            tell text frame of shp
-                                set paragraph direction to right to left
-                            end tell
-                        end try
+                -- Check if this is the title (skip mirroring for title)
+                set isTitle to false
+                if hasText and slideTitle is not "" then
+                    if shpText = slideTitle then
+                        set isTitle to true
                     end if
+                end if
 
-                else if isTable then
-                    -- TABLE: Mirror position + table direction
+                -- Mirror position (except for title)
+                if not isTitle then
                     try
                         set oldLeft to left position of shp
                         set shpW to width of shp
                         set newLeft to slideW - oldLeft - shpW
-                        if newLeft < 0 then set newLeft to 0
-                        set left position of shp to newLeft
-                    end try
-                    try
-                        set direction of table of shp to right to left
-                    end try
-
-                else
-                    -- OTHER SHAPE: Just mirror position
-                    try
-                        set oldLeft to left position of shp
-                        set shpW to width of shp
-                        set newLeft to slideW - oldLeft - shpW
-                        if newLeft < 0 then set newLeft to 0
+                        if newLeft < 0 then
+                            set newLeft to 0
+                        end if
                         set left position of shp to newLeft
                     end try
                 end if
@@ -167,7 +131,6 @@ return "SUCCESS"
 
     print(f"  [PowerPoint] Opening file in PowerPoint...")
 
-    # Run the AppleScript
     result = subprocess.run(
         ['osascript', '-e', applescript],
         capture_output=True,
