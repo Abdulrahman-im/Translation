@@ -10,12 +10,52 @@ This ensures perfect RTL layout matching the VBA macro.
 
 from pptx import Presentation
 from pptx.shapes.group import GroupShape
+from pptx.oxml.ns import qn
+from lxml import etree
 from typing import Dict, Optional
 import os
 import platform
 
 from .translator import translate_text
 from .pptx_parser import parse_slide_range
+
+
+def set_rtl_direction(slide):
+    """Set RTL text direction for all shapes on a slide."""
+    for shape in list(slide.shapes):
+        if isinstance(shape, GroupShape):
+            continue
+
+        if shape.has_text_frame:
+            for para in shape.text_frame.paragraphs:
+                try:
+                    pPr = para._p.get_or_add_pPr()
+                    pPr.set(qn('a:rtl'), '1')
+                except:
+                    pass
+
+        elif shape.has_table:
+            # Set table RTL
+            try:
+                tbl = shape.table._tbl
+                tblPr = tbl.find(qn('a:tblPr'))
+                if tblPr is None:
+                    tblPr = etree.SubElement(tbl, qn('a:tblPr'))
+                    tbl.insert(0, tblPr)
+                tblPr.set('rtl', '1')
+            except:
+                pass
+
+            # Set cell text RTL
+            for row in shape.table.rows:
+                for cell in row.cells:
+                    if cell.text_frame:
+                        for para in cell.text_frame.paragraphs:
+                            try:
+                                pPr = para._p.get_or_add_pPr()
+                                pPr.set(qn('a:rtl'), '1')
+                            except:
+                                pass
 
 
 def translate_slide_text(slide):
@@ -114,6 +154,11 @@ def translate_pptx_in_place(
 
         processed_slides += 1
         print(f"\n  Slide {slide_num}:")
+
+        # Set RTL text direction (PowerPoint did position mirroring)
+        if mirror_layout:
+            set_rtl_direction(slide)
+            print(f"    Set RTL text direction")
 
         slide_translations = translate_slide_text(slide)
         print(f"    Translated {len(slide_translations)} text items")
