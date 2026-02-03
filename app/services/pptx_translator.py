@@ -118,29 +118,11 @@ def translate_pptx_in_place(
     slides_to_process = parse_slide_range(slide_range or "", total_slides)
     print(f"Slides to process: {slides_to_process}")
 
-    # STEP 1: Mirror using PowerPoint (if enabled and on macOS)
-    if mirror_layout and platform.system() == 'Darwin':
-        try:
-            from .powerpoint_mirror import mirror_with_powerpoint, check_powerpoint_available
-
-            if check_powerpoint_available():
-                print(f"\n[STEP 1] Mirroring with PowerPoint...")
-                mirror_with_powerpoint(input_path, output_path, list(slides_to_process))
-                print(f"[STEP 1] PowerPoint mirroring complete!")
-            else:
-                print(f"\n[STEP 1] PowerPoint not available, copying file...")
-                import shutil
-                shutil.copy2(input_path, output_path)
-        except Exception as e:
-            print(f"[STEP 1] PowerPoint mirroring failed: {e}")
-            print(f"[STEP 1] Falling back to copy only...")
-            import shutil
-            shutil.copy2(input_path, output_path)
-    else:
-        # No mirroring requested, just copy
-        print(f"\n[STEP 1] Copying file (no mirroring)...")
-        import shutil
-        shutil.copy2(input_path, output_path)
+    # STEP 1: Copy file (PowerPoint mirroring is under development)
+    import shutil
+    print(f"\n[STEP 1] Copying file...")
+    print(f"[NOTE] RTL mirroring via PowerPoint is under development")
+    shutil.copy2(input_path, output_path)
 
     # STEP 2: Translate text using python-pptx
     print(f"\n[STEP 2] Translating text with python-pptx...")
