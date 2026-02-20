@@ -122,6 +122,8 @@ http://localhost:8000
 - python-pptx - PowerPoint file processing
 - openpyxl - Excel file generation
 - requests - HTTP client for API calls
+- **pywin32** (Windows only) - For RTL layout mirroring via PowerPoint COM when running on Windows.
+- **Microsoft PowerPoint** - Required for RTL mirroring. On Mac, use Microsoft PowerPoint for Mac (AppleScript); on Windows, use PowerPoint with pywin32.
 
 ## License
 

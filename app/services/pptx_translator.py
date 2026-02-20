@@ -2,10 +2,10 @@
 PPTX Translation Service.
 
 Strategy:
-1. Use PowerPoint (via AppleScript) for RTL mirroring - matches VBA exactly
+1. Use PowerPoint COM (Windows) for RTL mirroring - same logic as VBA macro
 2. Use python-pptx only for text translation
 
-This ensures perfect RTL layout matching the VBA macro.
+RTL mirroring runs only on Windows (pywin32 + PowerPoint installed).
 """
 
 from pptx import Presentation
@@ -102,7 +102,7 @@ def translate_pptx_in_place(
     Translate PPTX with RTL mirroring.
 
     Process:
-    1. If mirror_layout=True and on macOS: Use PowerPoint for mirroring (VBA logic)
+    1. If mirror_layout=True and on Windows: Use PowerPoint COM for mirroring (same as VBA)
     2. Then use python-pptx for translation only
     """
     print(f"\n{'='*60}")
@@ -118,11 +118,19 @@ def translate_pptx_in_place(
     slides_to_process = parse_slide_range(slide_range or "", total_slides)
     print(f"Slides to process: {slides_to_process}")
 
-    # STEP 1: Copy file (PowerPoint mirroring is under development)
+    # STEP 1: Mirror layout via PowerPoint (Windows COM) or copy file
     import shutil
-    print(f"\n[STEP 1] Copying file...")
-    print(f"[NOTE] RTL mirroring via PowerPoint is under development")
-    shutil.copy2(input_path, output_path)
+    from .powerpoint_mirror import check_powerpoint_available, mirror_with_powerpoint
+
+    used_powerpoint_mirror = mirror_layout and check_powerpoint_available()
+    print(f"\n[STEP 1] Layout...")
+    if used_powerpoint_mirror:
+        print(f"  Mirroring layout via PowerPoint (COM)...")
+        mirror_with_powerpoint(input_path, output_path, slide_numbers=slides_to_process)
+    else:
+        if mirror_layout:
+            print(f"  [NOTE] RTL mirroring requires Windows (pywin32) or Mac (PowerPoint.app); copying file only.")
+        shutil.copy2(input_path, output_path)
 
     # STEP 2: Translate text using python-pptx
     print(f"\n[STEP 2] Translating text with python-pptx...")
@@ -137,8 +145,8 @@ def translate_pptx_in_place(
         processed_slides += 1
         print(f"\n  Slide {slide_num}:")
 
-        # Set RTL text direction (PowerPoint did position mirroring)
-        if mirror_layout:
+        # Set RTL text direction only if we didn't use PowerPoint (COM already set direction)
+        if mirror_layout and not used_powerpoint_mirror:
             set_rtl_direction(slide)
             print(f"    Set RTL text direction")
 
